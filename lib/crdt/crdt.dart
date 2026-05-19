@@ -40,7 +40,7 @@ class FractionalIndex {
   static String getBetween(String? before, String? after) {
     // If before and after are invalidly ordered, return fallback position
     if (before != null && after != null && before.compareTo(after) >= 0) {
-      return before + 'm';
+      return '${before}m';
     }
 
     final String b = before ?? 'a';
@@ -64,7 +64,7 @@ class FractionalIndex {
         // No space (e.g. 'a' and 'b').
         // If we are at the end of before, we can append a middle character 'm' (109)
         if (len + 1 >= b.length) {
-          return b + 'm';
+          return '${b}m';
         }
         len++;
       }

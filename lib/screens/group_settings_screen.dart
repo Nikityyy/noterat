@@ -40,15 +40,19 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     setState(() => _isLoading = true);
     try {
       final list = await _supabaseService.getGroupMembers(widget.groupId);
+      if (!mounted) return;
       setState(() {
         _members = list;
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load members: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

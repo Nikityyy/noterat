@@ -35,16 +35,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final auth = context.read<AuthProvider>();
       if (auth.user != null) {
         final list = await _supabaseService.getJoinedGroups(auth.user!.id);
+        if (!mounted) return;
         setState(() {
           _groups = list;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load groups: $e')),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -84,8 +88,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 try {
                   final auth = context.read<AuthProvider>();
                   await _supabaseService.createGroup(name, auth.user!.id, auth.nickname ?? 'Alpinist');
+                  if (!mounted) return;
                   _refreshGroups();
                 } catch (e) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Failed to create group: $e')),
                   );
@@ -167,8 +173,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 try {
                   final auth = context.read<AuthProvider>();
                   await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'Alpinist');
+                  if (!mounted) return;
                   _refreshGroups();
                 } catch (e) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: ${e.toString()}')),
                   );
@@ -186,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openQRScanner() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => Scaffold(
+        builder: (scannerCtx) => Scaffold(
           appBar: AppBar(
             title: Text(
               'Scan Invite QR',
@@ -195,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundColor: AppColors.styrianForest,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(scannerCtx),
             ),
           ),
           body: MobileScanner(
@@ -205,14 +213,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final code = barcode.rawValue?.trim().toUpperCase();
                 if (code != null && code.length == 6) {
                   HapticFeedback.lightImpact();
-                  Navigator.pop(context); // Close scanner screen
+                  Navigator.pop(scannerCtx); // Close scanner screen
                   
                   setState(() => _isLoading = true);
                   try {
                     final auth = context.read<AuthProvider>();
                     await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'Alpinist');
+                    if (!mounted) return;
                     _refreshGroups();
                   } catch (e) {
+                    if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Failed to join group from QR: $e')),
                     );

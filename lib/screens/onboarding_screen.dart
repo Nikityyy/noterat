@@ -113,7 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.kaiserRed.withOpacity(0.1),
+                      color: AppColors.kaiserRed.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12.0),
                       border: Border.all(
                         color: AppColors.kaiserRed,

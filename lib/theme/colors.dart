@@ -23,8 +23,7 @@ class AppTheme {
       primaryColor: AppColors.styrianForest,
       colorScheme: const ColorScheme.light(
         primary: AppColors.styrianForest,
-        background: AppColors.glacialWhite,
-        surface: AppColors.steelLight,
+        surface: AppColors.glacialWhite,
         error: AppColors.kaiserRed,
       ),
       textTheme: TextTheme(

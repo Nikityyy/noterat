@@ -106,10 +106,10 @@ class _NotesListScreenState extends State<NotesListScreen> {
 
   Future<void> _createNewNote() async {
     HapticFeedback.lightImpact();
+    final auth = context.read<AuthProvider>();
     setState(() => _isLoading = true);
     try {
       final newNote = await _supabaseService.createNote(widget.groupId, 'Untitled Note');
-      final auth = context.read<AuthProvider>();
       
       if (mounted) {
         _refreshNotes();
