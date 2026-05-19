@@ -59,7 +59,7 @@ jobs:
       run: flutter pub get
 
     - name: Build Flutter web (PWA)
-      run: flutter build web --release --base-href /app/
+      run: flutter build web --release --base-href /noterat/app/
 
     - name: Assemble site structure
       run: |
