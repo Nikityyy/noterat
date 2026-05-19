@@ -33,36 +33,35 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            val envKeystorePath = System.getenv("KEYSTORE_PATH")
-            val envKeystorePassword = System.getenv("STORE_PASSWORD")
-            val envKeyAlias = System.getenv("KEY_ALIAS")
-            val envKeyPassword = System.getenv("KEY_PASSWORD")
+    val envKeystorePath = System.getenv("KEYSTORE_PATH")
+    val envKeystorePassword = System.getenv("STORE_PASSWORD")
+    val envKeyAlias = System.getenv("KEY_ALIAS")
+    val envKeyPassword = System.getenv("KEY_PASSWORD")
 
-            if (!envKeystorePath.isNullOrEmpty() &&
-                !envKeystorePassword.isNullOrEmpty() &&
-                !envKeyAlias.isNullOrEmpty() &&
-                !envKeyPassword.isNullOrEmpty()
-            ) {
-                storeFile = file(envKeystorePath)
-                storePassword = envKeystorePassword
-                keyAlias = envKeyAlias
-                keyPassword = envKeyPassword
-            } else {
-                val keystorePropertiesFile = rootProject.file("key.properties")
-                if (keystorePropertiesFile.exists()) {
+    val keystorePropertiesFile = rootProject.file("key.properties")
+
+    val hasEnvSecrets = !envKeystorePath.isNullOrEmpty() &&
+            !envKeystorePassword.isNullOrEmpty() &&
+            !envKeyAlias.isNullOrEmpty() &&
+            !envKeyPassword.isNullOrEmpty()
+
+    val hasFileSecrets = keystorePropertiesFile.exists()
+
+    signingConfigs {
+        if (hasEnvSecrets || hasFileSecrets) {
+            create("release") {
+                if (hasEnvSecrets) {
+                    storeFile = file(envKeystorePath)
+                    storePassword = envKeystorePassword
+                    keyAlias = envKeyAlias
+                    keyPassword = envKeyPassword
+                } else {
                     val keystoreProperties = Properties()
                     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
                     storeFile = file(keystoreProperties.getProperty("storeFile") ?: "")
                     storePassword = keystoreProperties.getProperty("storePassword") ?: ""
                     keyAlias = keystoreProperties.getProperty("keyAlias") ?: ""
                     keyPassword = keystoreProperties.getProperty("keyPassword") ?: ""
-                } else {
-                    storeFile = signingConfigs.getByName("debug").storeFile
-                    storePassword = signingConfigs.getByName("debug").storePassword
-                    keyAlias = signingConfigs.getByName("debug").keyAlias
-                    keyPassword = signingConfigs.getByName("debug").keyPassword
                 }
             }
         }
@@ -70,7 +69,11 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasEnvSecrets || hasFileSecrets) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
