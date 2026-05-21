@@ -239,3 +239,56 @@ begin
     alter publication supabase_realtime add table public.notes;
   end if;
 end $$;
+
+-- =========================================================================
+-- 5. MIGRATION — Rich Text, Pinning & Comments (run once, safe to re-run)
+-- =========================================================================
+
+-- Add pinning to notes
+alter table public.notes
+  add column if not exists is_pinned boolean not null default false;
+
+-- Comments table
+create table if not exists public.note_comments (
+  id uuid primary key default gen_random_uuid(),
+  note_id uuid references public.notes(id) on delete cascade not null,
+  group_id uuid references public.groups(id) on delete cascade not null,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  nickname text not null,
+  content text not null,
+  mentioned_users text[] default '{}',
+  created_at timestamp with time zone default timezone('utc', now()) not null
+);
+
+create index if not exists idx_note_comments_note_id on public.note_comments(note_id);
+
+alter table public.note_comments enable row level security;
+
+drop policy if exists "Members can read comments" on public.note_comments;
+drop policy if exists "Members can insert comments" on public.note_comments;
+drop policy if exists "Author can delete own comment" on public.note_comments;
+
+create policy "Members can read comments"
+  on public.note_comments for select
+  using (public.is_group_member(group_id, auth.uid()));
+
+create policy "Members can insert comments"
+  on public.note_comments for insert
+  with check (auth.uid() = user_id and public.is_group_member(group_id, auth.uid()));
+
+create policy "Author can delete own comment"
+  on public.note_comments for delete
+  using (auth.uid() = user_id);
+
+-- Realtime for comments
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' 
+    and schemaname = 'public' 
+    and tablename = 'note_comments'
+  ) then
+    alter publication supabase_realtime add table public.note_comments;
+  end if;
+end $$;

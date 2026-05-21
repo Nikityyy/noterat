@@ -1,14 +1,17 @@
 // lib/screens/editor_screen.dart
 
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/editor_provider.dart';
 import '../services/supabase_service.dart';
 import '../theme/colors.dart';
+import '../widgets/formatting_toolbar.dart';
+import 'comments_screen.dart';
 
 class EditorScreen extends StatelessWidget {
   final String groupId;
@@ -28,56 +31,64 @@ class EditorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        top: false, // Let frosted AppBar extend to status bar
-        child: ChangeNotifierProvider<EditorProvider>(
-          create: (_) => EditorProvider(
-            groupId: groupId,
-            noteId: noteId,
-            userId: userId,
-            nickname: nickname,
-          ),
-          child: const _EditorScreenBody(),
-        ),
+    return ChangeNotifierProvider<EditorProvider>(
+      create: (_) => EditorProvider(
+        groupId: groupId,
+        noteId: noteId,
+        userId: userId,
+        nickname: nickname,
+      ),
+      child: _EditorBody(
+        groupId: groupId,
+        noteId: noteId,
+        userId: userId,
+        nickname: nickname,
       ),
     );
   }
 }
 
-class _EditorScreenBody extends StatefulWidget {
-  const _EditorScreenBody();
+class _EditorBody extends StatefulWidget {
+  final String groupId;
+  final String noteId;
+  final String userId;
+  final String nickname;
+
+  const _EditorBody({
+    required this.groupId,
+    required this.noteId,
+    required this.userId,
+    required this.nickname,
+  });
 
   @override
-  State<_EditorScreenBody> createState() => _EditorScreenBodyState();
+  State<_EditorBody> createState() => _EditorBodyState();
 }
 
-class _EditorScreenBodyState extends State<_EditorScreenBody> {
-  final ScrollController _scrollController = ScrollController();
+class _EditorBodyState extends State<_EditorBody> {
+  final FocusNode _editorFocusNode = FocusNode();
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _editorFocusNode.dispose();
     super.dispose();
   }
 
-  Color _getAvatarColor(String name) {
-    final hash = name.hashCode;
-    final colors = [
+  Color _avatarColor(String name) {
+    const colors = [
       AppColors.styrianForest,
-      const Color(0xFF2C5E7A),
-      const Color(0xFF7A2C5E),
-      const Color(0xFF7A5E2C),
-      const Color(0xFF2C7A5E),
-      const Color(0xFF5E2C7A),
+      Color(0xFF2C5E7A),
+      Color(0xFF7A2C5E),
+      Color(0xFF7A5E2C),
+      Color(0xFF2C7A5E),
+      Color(0xFF5E2C7A),
     ];
-    return colors[hash.abs() % colors.length];
+    return colors[name.hashCode.abs() % colors.length];
   }
 
-  Widget _buildCollaboratorAvatars(EditorProvider provider) {
-    final list = provider.collaborators.values.toList();
+  Widget _collaboratorAvatars(EditorProvider p) {
+    final list = p.collaborators.values.toList();
     if (list.isEmpty) return const SizedBox.shrink();
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -91,14 +102,10 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
                 backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 child: CircleAvatar(
                   radius: 12,
-                  backgroundColor: _getAvatarColor(list[i]['nickname'] as String? ?? 'A'),
+                  backgroundColor: _avatarColor(list[i]['nickname'] as String? ?? 'A'),
                   child: Text(
                     ((list[i]['nickname'] as String?) ?? 'A')[0].toUpperCase(),
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
               ),
@@ -108,50 +115,33 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
     );
   }
 
-  Future<void> _deleteNote(BuildContext context, EditorProvider provider) async {
-    final confirm = await showDialog<bool>(
+  Future<void> _deleteNote(BuildContext context, EditorProvider p) async {
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          'Delete Note?',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.kaiserRed),
-        ),
-        content: Text(
-          'This note will be permanently deleted. This cannot be undone.',
-          style: GoogleFonts.outfit(),
-        ),
+        title: Text('Delete Note?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.kaiserRed)),
+        content: Text('This note will be permanently deleted. This cannot be undone.', style: GoogleFonts.outfit()),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.kaiserRed,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.kaiserRed, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
         ],
       ),
     );
-
-    if (confirm == true && context.mounted) {
+    if (ok == true && context.mounted) {
       HapticFeedback.lightImpact();
       try {
-        await SupabaseService().deleteNote(provider.noteId);
+        await SupabaseService().deleteNote(p.noteId);
         if (context.mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Note deleted')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Note deleted')));
         }
-      } catch (e) {
+      } catch (_) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not delete note. Please try again.')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete note.')));
         }
       }
     }
@@ -159,14 +149,24 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<EditorProvider>();
-
-    final wordCount = provider.controller.text.trim().isEmpty
-        ? 0
-        : provider.controller.text.trim().split(RegExp(r'\s+')).length;
+    final p = context.watch<EditorProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      floatingActionButton: p.isLoading
+          ? null
+          : FloatingActionButton(
+              mini: true,
+              backgroundColor: AppColors.styrianForest,
+              foregroundColor: Colors.white,
+              tooltip: 'Comments',
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                showCommentsSheet(context, p.noteId, p.groupId, p.userId, p.nickname);
+              },
+              child: const Icon(Icons.chat_bubble_outline, size: 20),
+            ),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRect(
@@ -174,8 +174,9 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               decoration: BoxDecoration(
-                // Subtle sage tint — visually distinct from the pure white canvas
-                color: const Color(0xEEF4F8F5),
+                color: isDark
+                    ? AppColors.darkBackground.withValues(alpha: 0.9)
+                    : const Color(0xEEF4F8F5),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.styrianForest.withValues(alpha: 0.12),
@@ -188,90 +189,91 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, size: 20),
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                  onPressed: () { HapticFeedback.lightImpact(); Navigator.pop(context); },
                 ),
                 title: Text(
-                  provider.noteTitle,
+                  p.noteTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 17,
-                  ),
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 17),
                 ),
                 actions: [
-                  _buildCollaboratorAvatars(provider),
+                  _collaboratorAvatars(p),
                   const SizedBox(width: 4),
+                  // Sync status pill
                   Tooltip(
-                    message: provider.isSynced ? 'All changes saved' : 'Tap to sync pending changes',
+                    message: p.isSynced ? 'All changes saved' : 'Tap to sync',
                     child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        provider.syncPendingUpdates();
-                      },
+                      onTap: () { HapticFeedback.lightImpact(); p.syncPendingUpdates(); },
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 10),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: provider.isSynced
+                          color: p.isSynced
                               ? AppColors.glacierMint.withValues(alpha: 0.15)
                               : AppColors.borderGray.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: provider.isSynced ? AppColors.glacierMint : AppColors.borderGray,
-                            width: 1.0,
+                            color: p.isSynced ? AppColors.glacierMint : AppColors.borderGray,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: provider.isSynced ? AppColors.glacierMint : AppColors.textLight,
-                              ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: p.isSynced ? AppColors.glacierMint : AppColors.textLight,
                             ),
-                            const SizedBox(width: 5),
-                            Text(
-                              provider.isSynced ? 'Saved' : 'Offline',
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: provider.isSynced ? AppColors.styrianForest : AppColors.textLight,
-                              ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            p.isSynced ? 'Saved' : 'Offline',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: p.isSynced ? AppColors.styrianForest : AppColors.textLight,
                             ),
-                          ],
-                        ),
+                          ),
+                        ]),
                       ),
                     ),
                   ),
                   const SizedBox(width: 4),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
-                    onSelected: (value) {
-                      if (value == 'delete') {
-                        _deleteNote(context, provider);
+                    onSelected: (v) {
+                      if (v == 'pin') {
+                        HapticFeedback.lightImpact();
+                        p.togglePin();
+                      } else if (v == 'delete') {
+                        _deleteNote(context, p);
                       }
                     },
-                    itemBuilder: (ctx) => [
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'pin',
+                        child: Row(children: [
+                          Icon(
+                            p.isNotePinned ? Icons.push_pin : Icons.push_pin_outlined,
+                            color: AppColors.styrianForest,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            p.isNotePinned ? 'Unpin Note' : 'Pin Note',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
+                          ),
+                        ]),
+                      ),
                       PopupMenuItem(
                         value: 'delete',
-                        child: Row(
-                          children: [
-                            const Icon(Icons.delete_outline, color: AppColors.kaiserRed, size: 18),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Delete Note',
-                              style: GoogleFonts.outfit(color: AppColors.kaiserRed, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
+                        child: Row(children: [
+                          const Icon(Icons.delete_outline, color: AppColors.kaiserRed, size: 18),
+                          const SizedBox(width: 10),
+                          Text('Delete Note', style: GoogleFonts.outfit(color: AppColors.kaiserRed, fontWeight: FontWeight.w500)),
+                        ]),
                       ),
                     ],
                   ),
@@ -281,90 +283,76 @@ class _EditorScreenBodyState extends State<_EditorScreenBody> {
           ),
         ),
       ),
-      body: provider.isLoading
+      body: p.isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.styrianForest))
           : Column(
               children: [
-                // Document canvas — top padding accounts for AppBar + status bar
+                // Quill editor canvas
                 Expanded(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
+                  child: QuillEditor(
+                    focusNode: _editorFocusNode,
+                    scrollController: ScrollController(),
+                    controller: p.quillController,
+                    config: QuillEditorConfig(
                       padding: EdgeInsets.fromLTRB(
                         20,
                         MediaQuery.of(context).padding.top + kToolbarHeight + 20,
                         20,
-                        32,
+                        80,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Hint: first line is the title
-                          TextField(
-                            controller: provider.controller,
-                            maxLines: null,
-                            keyboardType: TextInputType.multiline,
-                            style: GoogleFonts.outfit(
-                              fontSize: 15,
-                              height: 1.65,
-                              color: Theme.of(context).textTheme.bodyLarge?.color,
-                            ),
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                              isDense: true,
-                              fillColor: Colors.transparent,
-                              filled: false,
-                              hintText: 'Title\n\nStart writing…',
-                              hintStyle: GoogleFonts.outfit(
-                                fontSize: 15,
-                                height: 1.65,
-                                color: AppColors.textLight.withValues(alpha: 0.5),
-                              ),
-                            ),
+                      placeholder: 'Title... Start writing...',
+                      autoFocus: false,
+                      expands: true,
+                      scrollable: true,
+                      customStyles: DefaultStyles(
+                        paragraph: DefaultTextBlockStyle(
+                          GoogleFonts.outfit(
+                            fontSize: 15,
+                            height: 1.65,
+                            color: isDark ? AppColors.darkText : AppColors.textDark,
                           ),
-                        ],
+                          const HorizontalSpacing(0, 0),
+                          const VerticalSpacing(4, 4),
+                          const VerticalSpacing(0, 0),
+                          null,
+                        ),
+                        h1: DefaultTextBlockStyle(
+                          GoogleFonts.outfit(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                            color: isDark ? AppColors.darkText : AppColors.textDark,
+                          ),
+                          const HorizontalSpacing(0, 0),
+                          const VerticalSpacing(8, 4),
+                          const VerticalSpacing(0, 0),
+                          null,
+                        ),
+                        h2: DefaultTextBlockStyle(
+                          GoogleFonts.outfit(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                            color: isDark ? AppColors.darkText : AppColors.textDark,
+                          ),
+                          const HorizontalSpacing(0, 0),
+                          const VerticalSpacing(6, 4),
+                          const VerticalSpacing(0, 0),
+                          null,
+                        ),
                       ),
+                      onLaunchUrl: (url) async {
+                        final uri = Uri.tryParse(url);
+                        if (uri != null && await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
                     ),
                   ),
                 ),
 
-                // Status bar
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    border: Border(
-                      top: BorderSide(
-                        color: Theme.of(context).dividerColor,
-                        width: 1.0,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.people_outline, size: 14, color: AppColors.textLight),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${provider.collaborators.length + 1} online',
-                            style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '$wordCount ${wordCount == 1 ? "word" : "words"}',
-                        style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
-                      ),
-                    ],
-                  ),
-                ),
+                // Formatting toolbar (slides up with the keyboard)
+                FormattingToolbar(controller: p.quillController),
               ],
             ),
     );

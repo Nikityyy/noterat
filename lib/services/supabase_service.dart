@@ -199,13 +199,19 @@ class SupabaseService {
     });
   }
 
+  Future<void> deleteDocumentUpdates(String noteId) async {
+    await client.from('document_updates').delete().eq('note_id', noteId);
+  }
+
   // --- NOTES MANAGEMENT ---
 
+  /// Returns notes for a group, pinned first then by updated_at desc.
   Future<List<Map<String, dynamic>>> getNotes(String groupId) async {
     final response = await client
         .from('notes')
         .select()
         .eq('group_id', groupId)
+        .order('is_pinned', ascending: false)
         .order('updated_at', ascending: false);
     return List<Map<String, dynamic>>.from(response);
   }
@@ -217,6 +223,7 @@ class SupabaseService {
           'group_id': groupId,
           'title': title,
           'snippet': 'No additional text',
+          'is_pinned': false,
           'created_at': DateTime.now().toUtc().toIso8601String(),
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         })
@@ -237,10 +244,53 @@ class SupabaseService {
   }
 
   Future<void> deleteNote(String noteId) async {
+    await client.from('notes').delete().eq('id', noteId);
+  }
+
+  /// Toggles the is_pinned flag on a note.
+  Future<void> toggleNotePin(String noteId, bool isPinned) async {
     await client
         .from('notes')
-        .delete()
+        .update({'is_pinned': isPinned})
         .eq('id', noteId);
   }
-}
 
+  // --- COMMENTS ---
+
+  Future<List<Map<String, dynamic>>> getComments(String noteId) async {
+    final response = await client
+        .from('note_comments')
+        .select()
+        .eq('note_id', noteId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<Map<String, dynamic>> addComment({
+    required String noteId,
+    required String groupId,
+    required String userId,
+    required String nickname,
+    required String content,
+    List<String> mentionedUsers = const [],
+  }) async {
+    final response = await client
+        .from('note_comments')
+        .insert({
+          'note_id': noteId,
+          'group_id': groupId,
+          'user_id': userId,
+          'nickname': nickname,
+          'content': content,
+          'mentioned_users': mentionedUsers,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .select()
+        .single();
+    return response;
+  }
+
+  Future<void> deleteComment(String commentId) async {
+    await client.from('note_comments').delete().eq('id', commentId);
+  }
+}
