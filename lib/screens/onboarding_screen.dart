@@ -14,7 +14,8 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerProviderStateMixin {
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
   final PageController _pageController = PageController();
   final _emailFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
@@ -102,37 +103,59 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                   const SizedBox(height: 16),
                 ],
 
-                // Progress dots (only during registration, not login)
-                if (!_isLoggingIn) ...[
-                  _buildProgressDots(),
-                  const SizedBox(height: 24),
-                ],
+                // Progress dots — always reserve the same space to prevent Y-shift
+                // during the login/register slide transition.
+                Opacity(
+                  opacity: _isLoggingIn ? 0.0 : 1.0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildProgressDots(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
 
                 // Main content area — AnimatedSwitcher between login and registration
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    ),
+                    duration: const Duration(milliseconds: 350),
+                    switchInCurve: Curves.easeInOut,
+                    switchOutCurve: Curves.easeInOut,
+                    transitionBuilder: (child, animation) {
+                      final isLogin = child.key == const ValueKey('login');
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: isLogin
+                              ? const Offset(1.0, 0.0)
+                              : const Offset(-1.0, 0.0),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      );
+                    },
                     child: _isLoggingIn
                         ? KeyedSubtree(
                             key: const ValueKey('login'),
-                            child: _buildLoginView(auth),
+                            child: SizedBox.expand(
+                              child: _buildLoginView(auth),
+                            ),
                           )
                         : KeyedSubtree(
                             key: const ValueKey('register'),
-                            child: PageView(
-                              controller: _pageController,
-                              physics: const NeverScrollableScrollPhysics(),
-                              onPageChanged: (page) => setState(() => _currentPage = page),
-                              children: [
-                                _buildWelcomePage(auth),
-                                _buildEmailPage(auth),
-                                _buildPasswordPage(auth),
-                                _buildProfilePage(auth),
-                              ],
+                            child: SizedBox.expand(
+                              child: PageView(
+                                controller: _pageController,
+                                physics: const NeverScrollableScrollPhysics(),
+                                onPageChanged: (page) =>
+                                    setState(() => _currentPage = page),
+                                children: [
+                                  _buildWelcomePage(auth),
+                                  _buildEmailPage(auth),
+                                  _buildPasswordPage(auth),
+                                  _buildProfilePage(auth),
+                                ],
+                              ),
                             ),
                           ),
                   ),
@@ -202,7 +225,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
       decoration: BoxDecoration(
         color: AppColors.kaiserRed.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10.0),
-        border: Border.all(color: AppColors.kaiserRed.withValues(alpha: 0.4), width: 1.0),
+        border: Border.all(
+          color: AppColors.kaiserRed.withValues(alpha: 0.4),
+          width: 1.0,
+        ),
       ),
       child: Row(
         children: [
@@ -220,7 +246,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
           ),
           GestureDetector(
             onTap: () => auth.clearError(),
-            child: const Icon(Icons.close, color: AppColors.kaiserRed, size: 16),
+            child: const Icon(
+              Icons.close,
+              color: AppColors.kaiserRed,
+              size: 16,
+            ),
           ),
         ],
       ),
@@ -325,7 +355,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               labelText: 'Email address',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please enter your email.';
+              if (value == null || value.isEmpty)
+                return 'Please enter your email.';
               if (!_isValidEmail(value)) return 'Enter a valid email address.';
               return null;
             },
@@ -381,7 +412,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               hintText: '••••••••',
               suffixIcon: IconButton(
                 icon: Icon(
-                  _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _showPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: AppColors.textLight,
                   size: 20,
                 ),
@@ -389,7 +422,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please enter a password.';
+              if (value == null || value.isEmpty)
+                return 'Please enter a password.';
               if (value.length < 6) return 'Must be at least 6 characters.';
               return null;
             },
@@ -406,15 +440,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               hintText: '••••••••',
               suffixIcon: IconButton(
                 icon: Icon(
-                  _showConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _showConfirmPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: AppColors.textLight,
                   size: 20,
                 ),
-                onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                onPressed: () => setState(
+                  () => _showConfirmPassword = !_showConfirmPassword,
+                ),
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please confirm your password.';
+              if (value == null || value.isEmpty)
+                return 'Please confirm your password.';
               if (value != auth.password) return 'Passwords do not match.';
               return null;
             },
@@ -485,7 +524,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               hintText: 'e.g. Alex',
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) return 'Please enter your name.';
+              if (value == null || value.trim().isEmpty)
+                return 'Please enter your name.';
               return null;
             },
             onChanged: (val) {
@@ -555,7 +595,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               hintText: 'you@example.com',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please enter your email.';
+              if (value == null || value.isEmpty)
+                return 'Please enter your email.';
               return null;
             },
             onChanged: (val) {
@@ -571,15 +612,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               hintText: '••••••••',
               suffixIcon: IconButton(
                 icon: Icon(
-                  _showLoginPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _showLoginPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: AppColors.textLight,
                   size: 20,
                 ),
-                onPressed: () => setState(() => _showLoginPassword = !_showLoginPassword),
+                onPressed: () =>
+                    setState(() => _showLoginPassword = !_showLoginPassword),
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please enter your password.';
+              if (value == null || value.isEmpty)
+                return 'Please enter your password.';
               return null;
             },
             onChanged: (val) {
@@ -653,7 +698,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
           label: const Text('Back'),
           style: TextButton.styleFrom(
             foregroundColor: AppColors.textLight,
-            textStyle: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w500),
+            textStyle: GoogleFonts.outfit(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
         const Spacer(),
