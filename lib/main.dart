@@ -152,7 +152,7 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Setup Required',
+                  'Configuration Required',
                   style: GoogleFonts.outfit(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
