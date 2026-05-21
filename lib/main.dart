@@ -32,15 +32,15 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
-      child: MyApp(isSupabaseConfigured: isSupabaseConfigured),
+      child: NoteratApp(isSupabaseConfigured: isSupabaseConfigured),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class NoteratApp extends StatelessWidget {
   final bool isSupabaseConfigured;
 
-  const MyApp({super.key, required this.isSupabaseConfigured});
+  const NoteratApp({super.key, required this.isSupabaseConfigured});
 
   @override
   Widget build(BuildContext context) {

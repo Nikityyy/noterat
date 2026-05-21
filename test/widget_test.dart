@@ -20,7 +20,7 @@ void main() {
 
   testWidgets('Smoke test - shows configuration page when not configured', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp(isSupabaseConfigured: false));
+    await tester.pumpWidget(const NoteratApp(isSupabaseConfigured: false));
     // Flush any pending microtasks / font-load callbacks.
     await tester.pump();
 

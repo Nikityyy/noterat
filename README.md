@@ -1,16 +1,5 @@
-# text_app_test
+# Noterat
 
-A new Flutter project.
+Noterat is a real-time collaborative note-taking app built with Flutter and Supabase.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+I was inspired by [TimeTree](https://timetreeapp.com/) and how well they do shared, collaborative calendars — I wanted to bring that same seamless multiplayer experience to plain notes.
