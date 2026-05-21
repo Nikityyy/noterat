@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 import '../theme/colors.dart';
@@ -41,49 +42,42 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     try {
       final list = await _supabaseService.getGroupMembers(widget.groupId);
       if (!mounted) return;
-      setState(() {
-        _members = list;
-      });
+      setState(() => _members = list);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load members: $e')),
+        const SnackBar(content: Text('Could not load members.')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _leaveGroup() async {
     HapticFeedback.lightImpact();
     final auth = context.read<AuthProvider>();
-    
-    // Confirm dialog
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.glacialWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          side: const BorderSide(color: AppColors.borderGray, width: 1.0),
-        ),
         title: Text(
-          'Leave Group?',
+          'Leave Workspace?',
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.kaiserRed),
         ),
         content: Text(
-          'Are you sure you want to leave ${widget.groupName}? You will lose access to its collaborative notes.',
+          'You will lose access to "${widget.groupName}" and all its notes.',
           style: GoogleFonts.outfit(),
         ),
         actions: [
-          OutlinedButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.kaiserRed),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.kaiserRed,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Leave'),
           ),
@@ -96,15 +90,15 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       try {
         await _supabaseService.leaveGroup(widget.groupId, auth.user!.id);
         if (mounted) {
+          Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Left ${widget.groupName}')),
+            SnackBar(content: Text('Left "${widget.groupName}"')),
           );
-          Navigator.pop(context); // Go back to dashboard
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to leave group: $e')),
+            const SnackBar(content: Text('Could not leave workspace. Please try again.')),
           );
           setState(() => _isLoading = false);
         }
@@ -112,156 +106,162 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     }
   }
 
+  void _copyInviteCode() {
+    HapticFeedback.lightImpact();
+    Clipboard.setData(ClipboardData(text: widget.inviteCode));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invite code copied!')),
+    );
+  }
+
+  void _shareInviteCode() {
+    HapticFeedback.lightImpact();
+    Share.share(
+      'Join my workspace on Noterat using code: ${widget.inviteCode}',
+      subject: 'Noterat Invite — ${widget.groupName}',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.glacialWhite,
       appBar: AppBar(
-        backgroundColor: AppColors.glacialWhite,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         title: Text(
-          'Group Settings',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.styrianForest),
+          'Workspace Info',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.styrianForest),
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.styrianForest))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Group Name Card
-                  Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      key: const ValueKey('group_info_card'),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.cabin, size: 28, color: AppColors.styrianForest),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.groupName,
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textDark,
-                                  ),
-                                ),
-                                Text(
-                                  'Collaborative Workspace',
-                                  style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
-                                ),
-                              ],
-                            ),
+                  // Workspace name card
+                  _buildSectionCard(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.styrianForest.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(11),
                           ),
-                        ],
-                      ),
+                          child: const Icon(Icons.folder_outlined, color: AppColors.styrianForest, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.groupName,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'Shared workspace',
+                                style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // Invite Code Label
-                  Text(
-                    'INVITATION DETAILS',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                      color: AppColors.textLight,
-                    ),
-                  ),
+                  // Section: Invite
+                  _buildSectionLabel('INVITE'),
                   const SizedBox(height: 10),
 
-                  // Invite Code Box + Copy
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: AppColors.steelLight,
-                      borderRadius: BorderRadius.circular(12.0),
-                      border: Border.all(color: AppColors.borderGray, width: 1.0),
-                    ),
+                  _buildSectionCard(
                     child: Column(
                       children: [
                         Text(
-                          'Share the code below with your peers:',
-                          style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight),
+                          'Share this code with anyone you want to invite:',
+                          style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
+
+                        // Invite code display
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.styrianForest.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.styrianForest.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Text(
+                            widget.inviteCode,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 6.0,
+                              color: AppColors.styrianForest,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Copy + Share row
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12.0),
-                                border: Border.all(color: AppColors.borderGray, width: 1.0),
-                              ),
-                              child: Text(
-                                widget.inviteCode,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2.0,
-                                  color: AppColors.styrianForest,
-                                ),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _copyInviteCode,
+                                icon: const Icon(Icons.copy, size: 16),
+                                label: const Text('Copy'),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            IconButton(
-                              icon: const Icon(Icons.copy, color: AppColors.styrianForest),
-                              onPressed: () {
-                                HapticFeedback.lightImpact();
-                                Clipboard.setData(ClipboardData(text: widget.inviteCode));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Invite code copied to clipboard!'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
-                            )
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _shareInviteCode,
+                                icon: const Icon(Icons.share_outlined, size: 16),
+                                label: const Text('Share'),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
-                        // QR Code Container
+
+                        // QR code — modern rounded style
                         Container(
-                          padding: const EdgeInsets.all(16.0),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12.0),
-                            border: Border.all(color: AppColors.borderGray, width: 1.0),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderGray),
                           ),
                           child: QrImageView(
                             data: widget.inviteCode,
                             version: QrVersions.auto,
                             size: 160.0,
                             dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
+                              dataModuleShape: QrDataModuleShape.circle,
                               color: AppColors.styrianForest,
                             ),
                             eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
+                              eyeShape: QrEyeShape.circle,
                               color: AppColors.styrianForest,
                             ),
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Scan QR code to join',
+                          'Scan to join this workspace',
                           style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
                         ),
                       ],
@@ -269,70 +269,114 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Members Section
-                  Text(
-                    'CABIN MEMBERS (${_members.length})',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                      color: AppColors.textLight,
-                    ),
-                  ),
+                  // Section: Members
+                  _buildSectionLabel('MEMBERS (${_members.length})'),
                   const SizedBox(height: 10),
 
-                  // Members List
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _members.length,
-                    itemBuilder: (context, index) {
-                      final member = _members[index];
-                      final name = member['nickname'] as String;
-                      final joinedAt = DateTime.parse(member['joined_at'] as String);
+                  _buildSectionCard(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _members.length,
+                      separatorBuilder: (context, index) => Divider(
+                        height: 1,
+                        color: Theme.of(context).dividerColor,
+                      ),
+                      itemBuilder: (context, index) {
+                        final member = _members[index];
+                        final name = member['nickname'] as String;
+                        final joinedAt = DateTime.parse(member['joined_at'] as String);
+                        final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: const Icon(Icons.person_outline, color: AppColors.styrianForest),
-                          title: Text(
-                            name,
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: AppColors.styrianForest.withValues(alpha: 0.1),
+                                child: Text(
+                                  initial,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.styrianForest,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: GoogleFonts.outfit(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Joined ${joinedAt.day}/${joinedAt.month}/${joinedAt.year}',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        color: AppColors.textLight,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          subtitle: Text(
-                            'Joined: ${joinedAt.day}/${joinedAt.month}/${joinedAt.year}',
-                            style: GoogleFonts.jetBrainsMono(fontSize: 11, color: AppColors.textLight),
-                          ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 32),
 
-                  // Leave Group Button
+                  // Leave workspace
                   SizedBox(
                     width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton(
+                    height: 50,
+                    child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.kaiserRed,
                         side: const BorderSide(color: AppColors.kaiserRed, width: 1.0),
                       ),
                       onPressed: _leaveGroup,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.exit_to_app),
-                          SizedBox(width: 8),
-                          Text('Leave Cabin Group'),
-                        ],
-                      ),
+                      icon: const Icon(Icons.logout, size: 18),
+                      label: const Text('Leave Workspace'),
                     ),
                   ),
                   const SizedBox(height: 40),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Text(
+      label,
+      style: GoogleFonts.outfit(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+        color: AppColors.textLight,
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderGray),
+      ),
+      child: child,
     );
   }
 }

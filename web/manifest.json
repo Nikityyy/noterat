@@ -3,7 +3,7 @@
     "short_name": "NOTERAT",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FAFAFC",
+    "background_color": "#0F5838",
     "theme_color": "#0F5838",
     "description": "Collaborative, offline-first alpine text editor.",
     "orientation": "portrait-primary",
@@ -31,5 +31,5 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-      ]
+    ]
 }

@@ -15,7 +15,6 @@ void main() async {
 
   bool isSupabaseConfigured = false;
   try {
-    // Check if the user has replaced placeholder credentials
     if (SupabaseService.supabaseUrl != 'https://your-supabase-project.supabase.co' &&
         SupabaseService.supabaseAnonKey != 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.your-anon-key') {
       await Supabase.initialize(
@@ -46,11 +45,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'NOTERAT',
+      title: 'Noterat',
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
-      home: isSupabaseConfigured 
-          ? const AuthGateway() 
+      home: isSupabaseConfigured
+          ? const AuthGateway()
           : const SupabaseConfigurationErrorPage(),
     );
   }
@@ -65,20 +66,68 @@ class AuthGateway extends StatelessWidget {
 
     switch (auth.status) {
       case AuthStatus.uninitialized:
-        return const Scaffold(
-          backgroundColor: AppColors.glacialWhite,
-          body: Center(
-            child: CircularProgressIndicator(color: AppColors.styrianForest),
-          ),
-        );
+      case AuthStatus.authenticating:
+        // FIX: never show login screen while authentication is in progress.
+        // Previously, 'authenticating' routed to OnboardingScreen, causing
+        // a 1-3s flash of the login page on every cold start for returning users.
+        return const _SplashScreen();
+
       case AuthStatus.authenticated:
         return const DashboardScreen();
-      case AuthStatus.authenticating:
+
       case AuthStatus.needsProfile:
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
         return const OnboardingScreen();
     }
+  }
+}
+
+/// Shown while the app resolves auth state. Replaces the raw CircularProgressIndicator
+/// centered on a blank screen with a branded loading experience.
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.glacialWhite,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.asset(
+                'assets/noterat-favicon-ios.webp',
+                width: 72,
+                height: 72,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Noterat',
+              style: GoogleFonts.outfit(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -1.0,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.styrianForest,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -88,7 +137,6 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.glacialWhite,
       body: SafeArea(
         child: Center(
           child: Container(
@@ -104,7 +152,7 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Configuration Required',
+                  'Setup Required',
                   style: GoogleFonts.outfit(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -114,9 +162,9 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Please update your Supabase URL and Anon Key in the source code to start using the app.',
+                  'Update your Supabase credentials in the source code to start using Noterat.',
                   style: GoogleFonts.outfit(
-                    fontSize: 16,
+                    fontSize: 15,
                     color: AppColors.textLight,
                     height: 1.5,
                   ),
@@ -134,7 +182,7 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Step 1: Open the configuration file:',
+                        'Open this file:',
                         style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       Text(
@@ -143,12 +191,8 @@ class SupabaseConfigurationErrorPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Step 2: Replace placeholder credentials:',
-                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      Text(
-                        'supabaseUrl = \'...\'\nsupabaseAnonKey = \'...\'',
-                        style: GoogleFonts.jetBrainsMono(color: AppColors.textLight, fontSize: 11),
+                        'Replace the placeholder URL and key with your project credentials.',
+                        style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight),
                       ),
                     ],
                   ),

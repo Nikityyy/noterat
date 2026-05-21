@@ -14,7 +14,7 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerProviderStateMixin {
   final PageController _pageController = PageController();
   final _emailFormKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
@@ -26,6 +26,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _loginPassword = '';
   int _currentPage = 0;
 
+  // Password visibility
+  bool _showPassword = false;
+  bool _showConfirmPassword = false;
+  bool _showLoginPassword = false;
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -36,7 +41,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!_pageController.hasClients) return;
     HapticFeedback.lightImpact();
     _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
   }
@@ -45,7 +50,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!_pageController.hasClients) return;
     HapticFeedback.lightImpact();
     _pageController.previousPage(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
   }
@@ -55,7 +60,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     HapticFeedback.lightImpact();
     _pageController.animateToPage(
       page,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
   }
@@ -68,111 +73,72 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    // Redirect logic: if profile setup is needed (after successful registration)
-    // we force the page view to Page 3 (0-indexed Page 4)
-    if (auth.status == AuthStatus.needsProfile &&
-        _currentPage != 3) {
+    if (auth.status == AuthStatus.needsProfile && _currentPage != 3) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients) {
           _pageController.jumpToPage(3);
-          setState(() {
-            _currentPage = 3;
-          });
+          setState(() => _currentPage = 3);
         }
       });
     }
 
     return Scaffold(
-      backgroundColor: AppColors.glacialWhite,
       body: SafeArea(
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 450),
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 28.0),
             child: Column(
               children: [
-                // Top header logo representation
-                const SizedBox(height: 20),
-                Text(
-                  'NOTERAT',
-                  style: GoogleFonts.outfit(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -1.5,
-                    color: AppColors.styrianForest,
-                  ),
-                ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
-                // Error alert pill if present
+                // Branded header
+                _buildBrandHeader(),
+                const SizedBox(height: 32),
+
+                // Error banner
                 if (auth.errorMessage != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.kaiserRed.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12.0),
-                      border: Border.all(
-                        color: AppColors.kaiserRed,
-                        width: 1.0,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: AppColors.kaiserRed,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            auth.errorMessage!,
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              color: AppColors.kaiserRed,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close,
-                            color: AppColors.kaiserRed,
-                            size: 16,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () => auth.clearError(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  _buildErrorBanner(auth),
+                  const SizedBox(height: 16),
                 ],
 
+                // Progress dots (only during registration, not login)
+                if (!_isLoggingIn) ...[
+                  _buildProgressDots(),
+                  const SizedBox(height: 24),
+                ],
+
+                // Main content area — AnimatedSwitcher between login and registration
                 Expanded(
-                  child: _isLoggingIn
-                      ? _buildLoginView(auth)
-                      : PageView(
-                          controller: _pageController,
-                          physics: const NeverScrollableScrollPhysics(),
-                          onPageChanged: (page) {
-                            setState(() {
-                              _currentPage = page;
-                            });
-                          },
-                          children: [
-                            _buildGreetingPage(auth),
-                            _buildEmailPage(auth),
-                            _buildPasswordPage(auth),
-                            _buildProfilePage(auth),
-                          ],
-                        ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    ),
+                    child: _isLoggingIn
+                        ? KeyedSubtree(
+                            key: const ValueKey('login'),
+                            child: _buildLoginView(auth),
+                          )
+                        : KeyedSubtree(
+                            key: const ValueKey('register'),
+                            child: PageView(
+                              controller: _pageController,
+                              physics: const NeverScrollableScrollPhysics(),
+                              onPageChanged: (page) => setState(() => _currentPage = page),
+                              children: [
+                                _buildWelcomePage(auth),
+                                _buildEmailPage(auth),
+                                _buildPasswordPage(auth),
+                                _buildProfilePage(auth),
+                              ],
+                            ),
+                          ),
+                  ),
                 ),
+
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -181,32 +147,118 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // --- PAGE 1: HELLO (THE GREETING) ---
-  Widget _buildGreetingPage(AuthProvider auth) {
+  Widget _buildBrandHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: Image.asset(
+            'assets/noterat-favicon-ios.webp',
+            width: 36,
+            height: 36,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          'Noterat',
+          style: GoogleFonts.outfit(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.8,
+            color: AppColors.styrianForest,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(4, (index) {
+        final isActive = index == _currentPage;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: isActive ? 22 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.styrianForest : AppColors.borderGray,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildErrorBanner(AuthProvider auth) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.kaiserRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(color: AppColors.kaiserRed.withValues(alpha: 0.4), width: 1.0),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.kaiserRed, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              auth.errorMessage!,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: AppColors.kaiserRed,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => auth.clearError(),
+            child: const Icon(Icons.close, color: AppColors.kaiserRed, size: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── PAGE 1: WELCOME ─────────────────────────────────────────────────────────
+
+  Widget _buildWelcomePage(AuthProvider auth) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(
-          Icons.landscape_outlined,
-          size: 72,
-          color: AppColors.styrianForest,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Image.asset(
+            'assets/noterat-favicon-ios.webp',
+            width: 88,
+            height: 88,
+            fit: BoxFit.cover,
+          ),
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 24),
         Text(
-          'Welcome to the Summit',
+          'Write together,\nanywhere.',
           style: GoogleFonts.outfit(
-            fontSize: 24,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
+            letterSpacing: -0.8,
             color: AppColors.textDark,
+            height: 1.2,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 12),
         Text(
-          'A precise, high-performance workspace engineered for real-time offline-first text collaboration.',
+          'Real-time collaborative notes. Create a shared workspace and write with your team instantly.',
           style: GoogleFonts.outfit(
-            fontSize: 16,
+            fontSize: 15,
             color: AppColors.textLight,
             height: 1.5,
           ),
@@ -218,29 +270,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           height: 52,
           child: ElevatedButton(
             onPressed: () => _goToPage(1),
-            child: const Text('Get Started'),
+            child: const Text('Create an Account'),
           ),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: OutlinedButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              auth.clearError();
-              setState(() {
-                _isLoggingIn = true;
-              });
-            },
-            child: const Text('Log In'),
+        const SizedBox(height: 14),
+        TextButton(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            auth.clearError();
+            setState(() => _isLoggingIn = true);
+          },
+          child: Text(
+            'Already have an account? Log in',
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textLight,
+            ),
           ),
         ),
       ],
     );
   }
 
-  // --- PAGE 2: EMAIL ENTRY ---
+  // ─── PAGE 2: EMAIL ────────────────────────────────────────────────────────────
+
   Widget _buildEmailPage(AuthProvider auth) {
     return Form(
       key: _emailFormKey,
@@ -249,12 +303,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Enter your Email',
-            style: Theme.of(context).textTheme.headlineMedium,
+            'Your email',
+            style: GoogleFonts.outfit(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+              color: AppColors.textDark,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'We will use this to identify you on the network.',
+            "We'll send a confirmation email to this address.",
             style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight),
           ),
           const SizedBox(height: 24),
@@ -262,55 +321,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             keyboardType: TextInputType.emailAddress,
             initialValue: auth.email,
             decoration: const InputDecoration(
-              hintText: 'email@example.com',
-              labelText: 'Email Address',
+              hintText: 'you@example.com',
+              labelText: 'Email address',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter an email address.';
-              }
-              if (!_isValidEmail(value)) {
-                return 'Please enter a valid email format.';
-              }
+              if (value == null || value.isEmpty) return 'Please enter your email.';
+              if (!_isValidEmail(value)) return 'Enter a valid email address.';
               return null;
             },
-            onChanged: (val) => auth.email = val.trim(),
+            onChanged: (val) {
+              auth.email = val.trim();
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 36),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: _prevPage,
-                    child: const Text('Back'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_emailFormKey.currentState!.validate()) {
-                        auth.clearError();
-                        _nextPage();
-                      }
-                    },
-                    child: const Text('Next'),
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 32),
+          _buildNavRow(
+            onBack: _prevPage,
+            onForward: () {
+              if (_emailFormKey.currentState!.validate()) {
+                auth.clearError();
+                _nextPage();
+              }
+            },
+            forwardLabel: 'Next',
           ),
         ],
       ),
     );
   }
 
-  // --- PAGE 3: PASSWORD SETUP ---
+  // ─── PAGE 3: PASSWORD ─────────────────────────────────────────────────────────
+
   Widget _buildPasswordPage(AuthProvider auth) {
     return Form(
       key: _passwordFormKey,
@@ -319,92 +360,101 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Set your Password',
-            style: Theme.of(context).textTheme.headlineMedium,
+            'Set a password',
+            style: GoogleFonts.outfit(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+              color: AppColors.textDark,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Must be at least 6 characters.',
+            'Minimum 6 characters.',
             style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight),
           ),
           const SizedBox(height: 24),
           TextFormField(
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showPassword,
+            decoration: InputDecoration(
               labelText: 'Password',
-              hintText: '••••••',
+              hintText: '••••••••',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: AppColors.textLight,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+              ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter a password.';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 6 characters.';
-              }
+              if (value == null || value.isEmpty) return 'Please enter a password.';
+              if (value.length < 6) return 'Must be at least 6 characters.';
               return null;
             },
-            onChanged: (val) => auth.password = val,
+            onChanged: (val) {
+              auth.password = val;
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           TextFormField(
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Confirm Password',
-              hintText: '••••••',
+            obscureText: !_showConfirmPassword,
+            decoration: InputDecoration(
+              labelText: 'Confirm password',
+              hintText: '••••••••',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _showConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: AppColors.textLight,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+              ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please confirm your password.';
-              }
+              if (value == null || value.isEmpty) return 'Please confirm your password.';
+              if (value != auth.password) return 'Passwords do not match.';
               return null;
             },
-            onChanged: (val) => auth.confirmPassword = val,
+            onChanged: (val) {
+              auth.confirmPassword = val;
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 36),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: _prevPage,
-                    child: const Text('Back'),
+          const SizedBox(height: 32),
+          auth.status == AuthStatus.authenticating
+              ? const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.styrianForest,
+                    ),
                   ),
+                )
+              : _buildNavRow(
+                  onBack: _prevPage,
+                  onForward: () async {
+                    if (auth.status == AuthStatus.authenticating) return;
+                    if (_passwordFormKey.currentState!.validate()) {
+                      final success = await auth.registerUser();
+                      if (success && mounted && _pageController.hasClients) {
+                        _nextPage();
+                      }
+                    }
+                  },
+                  forwardLabel: 'Register',
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: auth.status == AuthStatus.authenticating
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.styrianForest,
-                          ),
-                        )
-                      : ElevatedButton(
-                          onPressed: () async {
-                            if (auth.status == AuthStatus.authenticating) return;
-                            if (_passwordFormKey.currentState!.validate()) {
-                              final success = await auth.registerUser();
-                              if (success && mounted && _pageController.hasClients) {
-                                // Transition to profile naming screen
-                                _nextPage();
-                              }
-                            }
-                          },
-                          child: const Text('Register'),
-                        ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  // --- PAGE 4: WELCOME & PROFILE CREATION ---
+  // ─── PAGE 4: PROFILE ──────────────────────────────────────────────────────────
+
   Widget _buildProfilePage(AuthProvider auth) {
     return Form(
       key: _profileFormKey,
@@ -413,59 +463,69 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'What should we call you?',
-            style: Theme.of(context).textTheme.headlineMedium,
+            "What's your name?",
+            style: GoogleFonts.outfit(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+              color: AppColors.textDark,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Your nickname will represent your cursor edits and invite profiles.',
+            'This name is shown to collaborators in shared notes.',
             style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight),
           ),
           const SizedBox(height: 24),
           TextFormField(
             initialValue: auth.tempNickname,
+            textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
-              labelText: 'Nickname',
-              hintText: 'e.g. Alpinist',
+              labelText: 'Display name',
+              hintText: 'e.g. Alex',
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please enter a nickname.';
-              }
+              if (value == null || value.trim().isEmpty) return 'Please enter your name.';
               return null;
             },
-            onChanged: (val) => auth.tempNickname = val,
+            onChanged: (val) {
+              auth.tempNickname = val;
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 36),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: auth.status == AuthStatus.authenticating
-                ? const Center(
+          const SizedBox(height: 32),
+          auth.status == AuthStatus.authenticating
+              ? const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
                     child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
                       color: AppColors.styrianForest,
                     ),
-                  )
-                : ElevatedButton(
+                  ),
+                )
+              : SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
                     onPressed: () async {
                       if (auth.status == AuthStatus.authenticating) return;
                       if (_profileFormKey.currentState!.validate()) {
-                        final success = await auth.completeProfileSetup();
-                        if (success) {
-                          HapticFeedback.lightImpact();
-                          // AuthProvider state change handles redirecting to Dashboard
-                        }
+                        HapticFeedback.lightImpact();
+                        await auth.completeProfileSetup();
                       }
                     },
-                    child: const Text('Complete Setup'),
+                    child: const Text('Get Started'),
                   ),
-          ),
+                ),
         ],
       ),
     );
   }
 
-  // --- LOG IN VIEW (TOGGLEABLE) ---
+  // ─── LOGIN VIEW ───────────────────────────────────────────────────────────────
+
   Widget _buildLoginView(AuthProvider auth) {
     return Form(
       key: _loginFormKey,
@@ -474,94 +534,139 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Welcome Back',
-            style: Theme.of(context).textTheme.headlineMedium,
+            'Welcome back',
+            style: GoogleFonts.outfit(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
+              color: AppColors.textDark,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Sign in to access your synchronized documents.',
+            'Sign in to your Noterat account.',
             style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight),
           ),
           const SizedBox(height: 24),
           TextFormField(
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
-              labelText: 'Email Address',
-              hintText: 'email@example.com',
+              labelText: 'Email address',
+              hintText: 'you@example.com',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email.';
-              }
+              if (value == null || value.isEmpty) return 'Please enter your email.';
               return null;
             },
-            onChanged: (val) => _loginEmail = val.trim(),
+            onChanged: (val) {
+              _loginEmail = val.trim();
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           TextFormField(
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showLoginPassword,
+            decoration: InputDecoration(
               labelText: 'Password',
-              hintText: '••••••',
+              hintText: '••••••••',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _showLoginPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: AppColors.textLight,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _showLoginPassword = !_showLoginPassword),
+              ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your password.';
-              }
+              if (value == null || value.isEmpty) return 'Please enter your password.';
               return null;
             },
-            onChanged: (val) => _loginPassword = val,
+            onChanged: (val) {
+              _loginPassword = val;
+              if (auth.errorMessage != null) auth.clearError();
+            },
           ),
-          const SizedBox(height: 36),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      auth.clearError();
-                      setState(() {
-                        _isLoggingIn = false;
-                      });
-                    },
-                    child: const Text('Back'),
+          const SizedBox(height: 32),
+          auth.status == AuthStatus.authenticating
+              ? const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.styrianForest,
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: auth.status == AuthStatus.authenticating
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.styrianForest,
-                          ),
-                        )
-                      : ElevatedButton(
-                          onPressed: () async {
-                            if (auth.status == AuthStatus.authenticating) return;
-                            if (_loginFormKey.currentState!.validate()) {
-                              final success = await auth.loginUser(
-                                _loginEmail,
-                                _loginPassword,
-                              );
-                              if (success) {
-                                HapticFeedback.lightImpact();
-                                // Auth state change redirects to Dashboard
-                              }
-                            }
-                          },
-                          child: const Text('Log In'),
+                )
+              : Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (auth.status == AuthStatus.authenticating) return;
+                          if (_loginFormKey.currentState!.validate()) {
+                            HapticFeedback.lightImpact();
+                            await auth.loginUser(_loginEmail, _loginPassword);
+                          }
+                        },
+                        child: const Text('Log In'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        auth.clearError();
+                        setState(() => _isLoggingIn = false);
+                      },
+                      child: Text(
+                        'Back to sign up',
+                        style: GoogleFonts.outfit(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textLight,
                         ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ],
       ),
+    );
+  }
+
+  // ─── SHARED NAV ROW ──────────────────────────────────────────────────────────
+
+  Widget _buildNavRow({
+    required VoidCallback onBack,
+    required VoidCallback onForward,
+    required String forwardLabel,
+  }) {
+    return Row(
+      children: [
+        TextButton.icon(
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back_ios, size: 14),
+          label: const Text('Back'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.textLight,
+            textStyle: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w500),
+          ),
+        ),
+        const Spacer(),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: onForward,
+            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.arrow_forward_ios, size: 14),
+            label: Text(forwardLabel),
+          ),
+        ),
+      ],
     );
   }
 }

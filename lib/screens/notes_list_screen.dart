@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 import '../services/supabase_service.dart';
 import '../theme/colors.dart';
+import '../utils/navigation.dart';
 import 'editor_screen.dart';
 
 class NotesListScreen extends StatefulWidget {
@@ -31,8 +32,8 @@ class _NotesListScreenState extends State<NotesListScreen> {
   List<Map<String, dynamic>> _filteredNotes = [];
   bool _isLoading = true;
   String _searchQuery = '';
-  
-  // Realtime Channel for Note Updates
+  final TextEditingController _searchController = TextEditingController();
+
   RealtimeChannel? _realtimeChannel;
 
   @override
@@ -45,13 +46,12 @@ class _NotesListScreenState extends State<NotesListScreen> {
   @override
   void dispose() {
     _realtimeChannel?.unsubscribe();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _refreshNotes({bool showLoading = false}) async {
-    if (showLoading) {
-      setState(() => _isLoading = true);
-    }
+    if (showLoading) setState(() => _isLoading = true);
     try {
       final list = await _supabaseService.getNotes(widget.groupId);
       if (mounted) {
@@ -64,16 +64,19 @@ class _NotesListScreenState extends State<NotesListScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load notes: $e')),
-        );
+        _showError('Could not load notes. Pull down to refresh.');
       }
     }
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _setupRealtime() {
     _realtimeChannel = SupabaseService.client.channel('notes_list:${widget.groupId}');
-    
     _realtimeChannel!.onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
@@ -83,11 +86,8 @@ class _NotesListScreenState extends State<NotesListScreen> {
         column: 'group_id',
         value: widget.groupId,
       ),
-      callback: (payload) {
-        _refreshNotes();
-      },
+      callback: (payload) => _refreshNotes(),
     );
-
     _realtimeChannel!.subscribe();
   }
 
@@ -110,29 +110,23 @@ class _NotesListScreenState extends State<NotesListScreen> {
     setState(() => _isLoading = true);
     try {
       final newNote = await _supabaseService.createNote(widget.groupId, 'Untitled Note');
-      
       if (mounted) {
         _refreshNotes();
-        // Redirect straight to Editor for the new note
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => EditorScreen(
-              groupId: widget.groupId,
-              noteId: newNote['id'] as String,
-              groupName: widget.groupName,
-              userId: auth.user!.id,
-              nickname: auth.nickname ?? 'Alpinist',
-            ),
-          ),
+          appRoute(EditorScreen(
+            groupId: widget.groupId,
+            noteId: newNote['id'] as String,
+            groupName: widget.groupName,
+            userId: auth.user!.id,
+            nickname: auth.nickname ?? 'User',
+          )),
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create note: $e')),
-        );
+        _showError('Could not create note. Please try again.');
       }
     }
   }
@@ -142,17 +136,8 @@ class _NotesListScreenState extends State<NotesListScreen> {
     try {
       await _supabaseService.deleteNote(noteId);
       _refreshNotes();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Note deleted')),
-        );
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete note: $e')),
-        );
-      }
+      if (mounted) _showError('Could not delete note. Please try again.');
     }
   }
 
@@ -160,24 +145,16 @@ class _NotesListScreenState extends State<NotesListScreen> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.glacialWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          side: const BorderSide(color: AppColors.borderGray, width: 1.0),
-        ),
         title: Text(
           'Delete Note?',
-          style: GoogleFonts.outfit(
-            fontWeight: FontWeight.bold,
-            color: AppColors.kaiserRed,
-          ),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.kaiserRed),
         ),
         content: Text(
-          'Are you sure you want to permanently delete this note? This action cannot be undone.',
+          'This note will be permanently deleted and cannot be recovered.',
           style: GoogleFonts.outfit(),
         ),
         actions: [
-          OutlinedButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
@@ -197,12 +174,14 @@ class _NotesListScreenState extends State<NotesListScreen> {
   String _formatDateTime(String timestamp) {
     try {
       final dt = DateTime.parse(timestamp).toLocal();
-      final hour = dt.hour.toString().padLeft(2, '0');
-      final minute = dt.minute.toString().padLeft(2, '0');
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      final month = months[dt.month - 1];
-      final day = dt.day.toString().padLeft(2, '0');
-      return '$month $day, $hour:$minute';
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+      if (diff.inDays < 1) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${months[dt.month - 1]} ${dt.day}';
     } catch (e) {
       return '';
     }
@@ -213,13 +192,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.glacialWhite,
       appBar: AppBar(
-        backgroundColor: AppColors.glacialWhite,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.styrianForest),
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () {
             HapticFeedback.lightImpact();
             Navigator.pop(context);
@@ -231,53 +206,52 @@ class _NotesListScreenState extends State<NotesListScreen> {
             Text(
               widget.groupName,
               style: GoogleFonts.outfit(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-                color: AppColors.styrianForest,
+                letterSpacing: -0.3,
               ),
             ),
             Text(
               '${_notes.length} ${_notes.length == 1 ? "note" : "notes"}',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11,
-                color: AppColors.textLight,
-              ),
+              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
             ),
           ],
         ),
       ),
       body: Column(
         children: [
-          // Search Bar
+          // Search bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(color: AppColors.borderGray, width: 1.0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.outfit(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Search notes…',
+                prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textLight),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18, color: AppColors.textLight),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                            _filterNotes();
+                          });
+                        },
+                      )
+                    : null,
               ),
-              child: TextField(
-                style: GoogleFonts.outfit(fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: 'Search Notes...',
-                  hintStyle: GoogleFonts.outfit(color: AppColors.textLight),
-                  prefixIcon: const Icon(Icons.search, color: AppColors.textLight),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                    _filterNotes();
-                  });
-                },
-              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                  _filterNotes();
+                });
+              },
             ),
           ),
 
-          // Notes List
+          // List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.styrianForest))
@@ -291,11 +265,9 @@ class _NotesListScreenState extends State<NotesListScreen> {
         onPressed: _createNewNote,
         backgroundColor: AppColors.styrianForest,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        icon: const Icon(Icons.edit_note_outlined),
-        label: const Text('Add Note'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: const Text('New Note'),
       ),
     );
   }
@@ -303,16 +275,24 @@ class _NotesListScreenState extends State<NotesListScreen> {
   Widget _buildEmptyState() {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-        const Icon(
-          Icons.note_alt_outlined,
-          size: 72,
-          color: AppColors.borderGray,
+        SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+        Center(
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.steelLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderGray),
+            ),
+            child: const Icon(Icons.notes_outlined, size: 28, color: AppColors.textLight),
+          ),
         ),
         const SizedBox(height: 16),
         Text(
-          _searchQuery.isNotEmpty ? 'No Notes Match Query' : 'Cabin Notebook is Empty',
+          _searchQuery.isNotEmpty ? 'No Results Found' : 'No Notes Yet',
           style: GoogleFonts.outfit(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -321,18 +301,12 @@ class _NotesListScreenState extends State<NotesListScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Text(
-            _searchQuery.isNotEmpty
-                ? 'Try editing your search query at the top.'
-                : 'Create a collaborative note to start documenting with other cabin members.',
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              color: AppColors.textLight,
-            ),
-            textAlign: TextAlign.center,
-          ),
+        Text(
+          _searchQuery.isNotEmpty
+              ? 'Try a different search term.'
+              : 'Create the first note for this workspace.',
+          style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight, height: 1.5),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -341,7 +315,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
   Widget _buildNotesList(AuthProvider auth) {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: _filteredNotes.length,
       itemBuilder: (context, index) {
         final note = _filteredNotes[index];
@@ -351,7 +325,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
         final updatedAt = note['updated_at'] as String? ?? '';
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 10),
           child: Dismissible(
             key: Key(noteId),
             direction: DismissDirection.endToStart,
@@ -362,88 +336,68 @@ class _NotesListScreenState extends State<NotesListScreen> {
                 color: AppColors.kaiserRed,
                 borderRadius: BorderRadius.circular(12.0),
               ),
-              child: const Icon(
-                Icons.delete_outline,
-                color: Colors.white,
-                size: 24,
-              ),
+              child: const Icon(Icons.delete_outline, color: Colors.white, size: 22),
             ),
             confirmDismiss: (direction) => _showDeleteConfirmation(context),
             onDismissed: (direction) => _deleteNote(noteId),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.steelLight,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(color: AppColors.borderGray, width: 1.0),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                title: Row(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(
+                  context,
+                  appRoute(EditorScreen(
+                    groupId: widget.groupId,
+                    noteId: noteId,
+                    groupName: widget.groupName,
+                    userId: auth.user!.id,
+                    nickname: auth.nickname ?? 'User',
+                  )),
+                ).then((_) => _refreshNotes());
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardTheme.color,
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(color: AppColors.borderGray, width: 1.0),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.outfit(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: AppColors.textDark,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              color: AppColors.textDark,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        const Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+                      ],
                     ),
-                    const SizedBox(width: 8),
+                    if (snippet.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        snippet,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight, height: 1.4),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
                     Text(
                       _formatDateTime(updatedAt),
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 11,
-                        color: AppColors.textLight,
-                      ),
+                      style: GoogleFonts.outfit(fontSize: 11, color: AppColors.textLight.withValues(alpha: 0.7)),
                     ),
                   ],
                 ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    snippet.trim().isEmpty ? 'Empty document' : snippet,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: AppColors.kaiserRed),
-                      onPressed: () async {
-                        final confirm = await _showDeleteConfirmation(context);
-                        if (confirm == true) {
-                          _deleteNote(noteId);
-                        }
-                      },
-                    ),
-                    const Icon(Icons.chevron_right, color: AppColors.textLight),
-                  ],
-                ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EditorScreen(
-                        groupId: widget.groupId,
-                        noteId: noteId,
-                        groupName: widget.groupName,
-                        userId: auth.user!.id,
-                        nickname: auth.nickname ?? 'Alpinist',
-                      ),
-                    ),
-                  ).then((_) => _refreshNotes());
-                },
               ),
             ),
           ),

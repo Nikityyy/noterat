@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/supabase_service.dart';
 import '../theme/colors.dart';
+import '../utils/navigation.dart';
 import 'group_settings_screen.dart';
 import 'notes_list_screen.dart';
 
@@ -36,19 +37,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (auth.user != null) {
         final list = await _supabaseService.getJoinedGroups(auth.user!.id);
         if (!mounted) return;
-        setState(() {
-          _groups = list;
-        });
+        setState(() => _groups = list);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load groups: $e')),
-      );
+      _showError('Could not load workspaces. Pull down to refresh.');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _confirmLogout(AuthProvider auth) async {
+    HapticFeedback.lightImpact();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Log Out?',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to log out?',
+          style: GoogleFonts.outfit(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      auth.logout();
     }
   }
 
@@ -57,24 +88,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.glacialWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          side: const BorderSide(color: AppColors.borderGray, width: 1.0),
-        ),
         title: Text(
-          'Create a Cabin Group',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.styrianForest),
+          'New Workspace',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(
-            labelText: 'Group Name',
-            hintText: 'e.g. Styrian Expedition',
+            labelText: 'Workspace name',
+            hintText: 'e.g. Product Team',
           ),
         ),
         actions: [
-          OutlinedButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
@@ -87,14 +115,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 setState(() => _isLoading = true);
                 try {
                   final auth = context.read<AuthProvider>();
-                  await _supabaseService.createGroup(name, auth.user!.id, auth.nickname ?? 'Alpinist');
+                  await _supabaseService.createGroup(name, auth.user!.id, auth.nickname ?? 'User');
                   if (!mounted) return;
                   _refreshGroups();
                 } catch (e) {
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to create group: $e')),
-                  );
+                  _showError('Could not create workspace. Please try again.');
                   setState(() => _isLoading = false);
                 }
               }
@@ -111,55 +137,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.glacialWhite,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          side: const BorderSide(color: AppColors.borderGray, width: 1.0),
-        ),
         title: Text(
-          'Join a Cabin Group',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.styrianForest),
+          'Join a Workspace',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: controller,
+              autofocus: true,
               textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(
-                labelText: '6-Digit Invite Code',
+                labelText: '6-digit invite code',
                 hintText: 'e.g. X8J9A4',
               ),
-              inputFormatters: [
-                LengthLimitingTextInputFormatter(6),
-              ],
+              inputFormatters: [LengthLimitingTextInputFormatter(6)],
             ),
             const SizedBox(height: 16),
             Text(
-              'OR',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textLight,
-              ),
+              'or',
+              style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 46,
               child: OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
                   _openQRScanner();
                 },
-                icon: const Icon(Icons.qr_code_scanner),
+                icon: const Icon(Icons.qr_code_scanner, size: 18),
                 label: const Text('Scan QR Code'),
               ),
             ),
           ],
         ),
         actions: [
-          OutlinedButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
@@ -172,14 +188,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 setState(() => _isLoading = true);
                 try {
                   final auth = context.read<AuthProvider>();
-                  await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'Alpinist');
+                  await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'User');
                   if (!mounted) return;
                   _refreshGroups();
                 } catch (e) {
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: ${e.toString()}')),
-                  );
+                  _showError('Invalid code or workspace not found.');
                   setState(() => _isLoading = false);
                 }
               }
@@ -193,17 +207,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _openQRScanner() {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (scannerCtx) => Scaffold(
+      appRoute(
+        Scaffold(
           appBar: AppBar(
             title: Text(
-              'Scan Invite QR',
+              'Scan Invite Code',
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
             ),
             backgroundColor: AppColors.styrianForest,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(scannerCtx),
+              onPressed: () => Navigator.pop(context),
             ),
           ),
           body: MobileScanner(
@@ -213,19 +227,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final code = barcode.rawValue?.trim().toUpperCase();
                 if (code != null && code.length == 6) {
                   HapticFeedback.lightImpact();
-                  Navigator.pop(scannerCtx); // Close scanner screen
-                  
+                  Navigator.pop(context);
                   setState(() => _isLoading = true);
                   try {
                     final auth = context.read<AuthProvider>();
-                    await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'Alpinist');
+                    await _supabaseService.joinGroup(code, auth.user!.id, auth.nickname ?? 'User');
                     if (!mounted) return;
                     _refreshGroups();
                   } catch (e) {
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to join group from QR: $e')),
-                    );
+                    _showError('Could not join workspace from QR code.');
                     setState(() => _isLoading = false);
                   }
                   break;
@@ -243,55 +254,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.glacialWhite,
       appBar: AppBar(
-        backgroundColor: AppColors.glacialWhite,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Dashboard',
+              'Noterat',
               style: GoogleFonts.outfit(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
                 letterSpacing: -0.5,
                 color: AppColors.styrianForest,
               ),
             ),
-            Row(
-              children: [
-                const Icon(Icons.person, size: 14, color: AppColors.textLight),
-                const SizedBox(width: 4),
-                Text(
-                  auth.nickname ?? 'Alpinist',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textLight,
-                  ),
+            if (auth.nickname != null)
+              Text(
+                'Hi, ${auth.nickname}',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w400,
                 ),
-              ],
-            ),
+              ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.styrianForest),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              auth.logout();
-            },
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log Out',
+            onPressed: () => _confirmLogout(auth),
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: _refreshGroups,
         color: AppColors.styrianForest,
-        backgroundColor: Colors.white,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.styrianForest))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.styrianForest),
+              )
             : _groups.isEmpty
                 ? _buildEmptyState()
                 : _buildGroupsList(),
@@ -303,11 +304,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         backgroundColor: AppColors.styrianForest,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
         icon: const Icon(Icons.add),
-        label: const Text('New Group'),
+        label: const Text('New'),
       ),
     );
   }
@@ -315,39 +314,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showActionSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.glacialWhite,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12.0)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
       ),
       builder: (ctx) => SafeArea(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.borderGray,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.create_new_folder_outlined, color: AppColors.styrianForest),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.styrianForest.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.add, color: AppColors.styrianForest, size: 20),
+                ),
                 title: Text(
-                  'Create a New Group',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                  'Create Workspace',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                subtitle: Text(
+                  'Start a new shared workspace',
+                  style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showCreateGroupDialog();
                 },
               ),
-              const Divider(color: AppColors.borderGray, height: 1),
               ListTile(
-                leading: const Icon(Icons.group_add_outlined, color: AppColors.styrianForest),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.styrianForest.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.group_add_outlined, color: AppColors.styrianForest, size: 20),
+                ),
                 title: Text(
-                  'Join Existing Group',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                  'Join Workspace',
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                subtitle: Text(
+                  'Enter an invite code',
+                  style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textLight),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showJoinGroupDialog();
                 },
               ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -358,16 +389,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildEmptyState() {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-        const Icon(
-          Icons.landscape_outlined,
-          size: 80,
-          color: AppColors.borderGray,
+        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+        Center(
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppColors.steelLight,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.borderGray),
+            ),
+            child: const Icon(Icons.workspaces_outlined, size: 32, color: AppColors.textLight),
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Text(
-          'Your Cabin is Empty',
+          'No Workspaces Yet',
           style: GoogleFonts.outfit(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -376,15 +415,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Text(
-            'Create a group to start collaborative text editing or join a friend\'s cabin group.',
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              color: AppColors.textLight,
-            ),
-            textAlign: TextAlign.center,
+        Text(
+          'Create a workspace to start writing with others, or join one using an invite code.',
+          style: GoogleFonts.outfit(fontSize: 14, color: AppColors.textLight, height: 1.5),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 28),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: _showActionSheet,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Create Your First Workspace'),
           ),
         ),
       ],
@@ -394,7 +435,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildGroupsList() {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: _groups.length,
       itemBuilder: (context, index) {
         final group = _groups[index];
@@ -402,71 +443,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final groupName = group['name'] as String;
         final inviteCode = group['invite_code'] as String;
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardTheme.color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderGray),
+          ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: const CircleAvatar(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.styrianForest,
-              radius: 20,
-              child: Icon(Icons.cabin),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.styrianForest.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(Icons.folder_outlined, color: AppColors.styrianForest, size: 22),
             ),
             title: Text(
               groupName,
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
             ),
-            subtitle: Row(
-              children: [
-                Text(
-                  'Code: ',
-                  style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
-                ),
-                Text(
-                  inviteCode,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.styrianForest,
-                  ),
-                ),
-              ],
+            subtitle: Text(
+              'Tap to open',
+              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textLight),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.settings, color: AppColors.textLight),
+                  icon: const Icon(Icons.settings_outlined, color: AppColors.textLight, size: 20),
+                  tooltip: 'Workspace settings',
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => GroupSettingsScreen(
-                          groupId: groupId,
-                          groupName: groupName,
-                          inviteCode: inviteCode,
-                        ),
-                      ),
+                      appRoute(GroupSettingsScreen(
+                        groupId: groupId,
+                        groupName: groupName,
+                        inviteCode: inviteCode,
+                      )),
                     ).then((_) => _refreshGroups());
                   },
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.textLight),
+                const Icon(Icons.chevron_right, color: AppColors.textLight, size: 20),
               ],
             ),
             onTap: () {
               HapticFeedback.lightImpact();
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => NotesListScreen(
-                    groupId: groupId,
-                    groupName: groupName,
-                  ),
-                ),
+                appRoute(NotesListScreen(groupId: groupId, groupName: groupName)),
               );
             },
           ),
