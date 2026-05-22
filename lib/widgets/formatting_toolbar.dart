@@ -8,8 +8,9 @@ import '../theme/colors.dart';
 
 class FormattingToolbar extends StatefulWidget {
   final QuillController controller;
+  final FocusNode focusNode;
 
-  const FormattingToolbar({super.key, required this.controller});
+  const FormattingToolbar({super.key, required this.controller, required this.focusNode});
 
   @override
   State<FormattingToolbar> createState() => _FormattingToolbarState();
@@ -76,6 +77,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggle(Attribute attribute) {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     final active = _isActive(attribute);
     if (active) {
       widget.controller.formatSelection(Attribute.clone(attribute, null));
@@ -86,6 +88,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggleHeader(int level) {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.header.key]?.value;
     if (current == level) {
@@ -97,6 +100,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggleList(String listType) {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.list.key]?.value;
     if (current == listType) {
@@ -108,6 +112,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggleChecklist() {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.list.key]?.value;
     if (current == 'checked' || current == 'unchecked') {
@@ -119,15 +124,18 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _indent() {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     widget.controller.indentSelection(true);
   }
 
   void _outdent() {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     widget.controller.indentSelection(false);
   }
 
   void _insertLink() {
+    widget.focusNode.requestFocus();
     final selection = widget.controller.selection;
     final selectedText = widget.controller.document.getPlainText(
       selection.baseOffset,
@@ -198,6 +206,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggleHighlight() {
     HapticFeedback.selectionClick();
+    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.background.key]?.value;
     if (current == '#FFF176') {
@@ -244,7 +253,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
           children: [
             _ToolbarButton(

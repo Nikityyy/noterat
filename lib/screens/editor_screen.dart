@@ -360,7 +360,10 @@ class _EditorBodyState extends State<_EditorBody> {
                 // Formatting toolbar (slides up with the keyboard)
                 SafeArea(
                   top: false,
-                  child: FormattingToolbar(controller: p.quillController),
+                  child: FormattingToolbar(
+                    controller: p.quillController,
+                    focusNode: _editorFocusNode,
+                  ),
                 ),
               ],
             ),
