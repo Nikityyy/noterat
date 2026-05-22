@@ -56,10 +56,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     if (attribute.key == Attribute.h2.key) {
       return style.attributes[Attribute.header.key]?.value == 2;
     }
-    if (attribute.key == Attribute.ul.key) {
+    if (attribute == Attribute.ul) {
       return style.attributes[Attribute.list.key]?.value == 'bullet';
     }
-    if (attribute.key == Attribute.ol.key) {
+    if (attribute == Attribute.ol) {
       return style.attributes[Attribute.list.key]?.value == 'ordered';
     }
     if (attribute.key == Attribute.checked.key) {
@@ -98,14 +98,14 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     widget.focusNode.requestFocus();
   }
 
-  void _toggleList(String listType) {
+  void _toggleList(Attribute listAttribute) {
     HapticFeedback.selectionClick();
     final style = widget.controller.getSelectionStyle();
-    final current = style.attributes[Attribute.list.key]?.value;
-    if (current == listType) {
-      widget.controller.formatSelection(Attribute.clone(Attribute.list, null));
+    final current = style.attributes[Attribute.list.key];
+    if (current == listAttribute) {
+      widget.controller.formatSelection(Attribute.clone(listAttribute, null));
     } else {
-      widget.controller.formatSelection(Attribute.fromKeyValue('list', listType));
+      widget.controller.formatSelection(listAttribute);
     }
     widget.focusNode.requestFocus();
   }
@@ -153,20 +153,20 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
           children: [
             TextField(
               controller: textCtrl,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Display text',
                 hintText: 'Link text',
-                prefixIcon: const Icon(Icons.text_fields, size: 18),
+                prefixIcon: Icon(Icons.text_fields, size: 18),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: urlCtrl,
               keyboardType: TextInputType.url,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'URL',
                 hintText: 'https://',
-                prefixIcon: const Icon(Icons.link, size: 18),
+                prefixIcon: Icon(Icons.link, size: 18),
               ),
             ),
           ],
@@ -226,11 +226,6 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     return style.attributes[Attribute.header.key]?.value == level;
   }
 
-  bool _isListActive(String listType) {
-    final style = widget.controller.getSelectionStyle();
-    return style.attributes[Attribute.list.key]?.value == listType;
-  }
-
   bool _isChecklistActive() {
     final style = widget.controller.getSelectionStyle();
     final v = style.attributes[Attribute.list.key]?.value;
@@ -242,8 +237,10 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.darkSurface : Colors.white;
     final border = isDark ? AppColors.darkBorder : AppColors.borderGray;
+    
+    final safeAreaBottom = MediaQuery.of(context).padding.bottom;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final bottomPadding = isKeyboardOpen ? 0.0 : 24.0;
+    final bottomPadding = isKeyboardOpen ? 12.0 : (safeAreaBottom > 0 ? 12.0 : 24.0);
 
     return Container(
       padding: EdgeInsets.only(bottom: bottomPadding),
@@ -257,115 +254,130 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
         height: 44,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            _ToolbarButton(
-              label: 'B',
-              bold: true,
-              isActive: _isActive(Attribute.bold),
-              onTap: () => _toggle(Attribute.bold),
-              tooltip: 'Bold',
-            ),
-            _ToolbarButton(
-              label: 'I',
-              italic: true,
-              isActive: _isActive(Attribute.italic),
-              onTap: () => _toggle(Attribute.italic),
-              tooltip: 'Italic',
-            ),
-            _ToolbarButton(
-              label: 'U',
-              underline: true,
-              isActive: _isActive(Attribute.underline),
-              onTap: () => _toggle(Attribute.underline),
-              tooltip: 'Underline',
-            ),
-            _ToolbarButton(
-              label: 'S',
-              strikethrough: true,
-              isActive: _isActive(Attribute.strikeThrough),
-              onTap: () => _toggle(Attribute.strikeThrough),
-              tooltip: 'Strikethrough',
-            ),
-            _ToolbarDivider(),
-            _ToolbarIconButton(
-              icon: Icons.highlight,
-              isActive: _isHighlightActive(),
-              onTap: _toggleHighlight,
-              tooltip: 'Highlight',
-              activeColor: const Color(0xFFFFF176),
-              activeIconColor: const Color(0xFF795548),
-            ),
-            _ToolbarIconButton(
-              icon: Icons.link,
-              isActive: false,
-              onTap: _insertLink,
-              tooltip: 'Insert Link',
-            ),
-            _ToolbarDivider(),
-            _ToolbarButton(
-              label: 'H1',
-              isActive: _isHeaderActive(1),
-              onTap: () => _toggleHeader(1),
-              tooltip: 'Heading 1',
-              fontSize: 11,
-            ),
-            _ToolbarButton(
-              label: 'H2',
-              isActive: _isHeaderActive(2),
-              onTap: () => _toggleHeader(2),
-              tooltip: 'Heading 2',
-              fontSize: 11,
-            ),
-            _ToolbarDivider(),
-            _ToolbarIconButton(
-              icon: Icons.format_list_bulleted,
-              isActive: _isListActive('bullet'),
-              onTap: () => _toggleList('bullet'),
-              tooltip: 'Bullet List',
-            ),
-            _ToolbarIconButton(
-              icon: Icons.format_list_numbered,
-              isActive: _isListActive('ordered'),
-              onTap: () => _toggleList('ordered'),
-              tooltip: 'Numbered List',
-            ),
-            _ToolbarIconButton(
-              icon: Icons.checklist,
-              isActive: _isChecklistActive(),
-              onTap: _toggleChecklist,
-              tooltip: 'Checklist',
-            ),
-            _ToolbarDivider(),
-            _ToolbarIconButton(
-              icon: Icons.format_quote,
-              isActive: _isActive(Attribute.blockQuote),
-              onTap: () => _toggle(Attribute.blockQuote),
-              tooltip: 'Block Quote',
-            ),
-            _ToolbarIconButton(
-              icon: Icons.code,
-              isActive: _isActive(Attribute.inlineCode),
-              onTap: () => _toggle(Attribute.inlineCode),
-              tooltip: 'Inline Code',
-            ),
-            _ToolbarDivider(),
-            _ToolbarIconButton(
-              icon: Icons.format_indent_increase,
-              isActive: false,
-              onTap: _indent,
-              tooltip: 'Indent',
-            ),
-            _ToolbarIconButton(
-              icon: Icons.format_indent_decrease,
-              isActive: false,
-              onTap: _outdent,
-              tooltip: 'Outdent',
-            ),
-          ],
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              _ToolbarButton(
+                label: 'B',
+                bold: true,
+                isActive: _isActive(Attribute.bold),
+                onTap: () => _toggle(Attribute.bold),
+                tooltip: 'Bold',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarButton(
+                label: 'I',
+                italic: true,
+                isActive: _isActive(Attribute.italic),
+                onTap: () => _toggle(Attribute.italic),
+                tooltip: 'Italic',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarButton(
+                label: 'U',
+                underline: true,
+                isActive: _isActive(Attribute.underline),
+                onTap: () => _toggle(Attribute.underline),
+                tooltip: 'Underline',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarButton(
+                label: 'S',
+                strikethrough: true,
+                isActive: _isActive(Attribute.strikeThrough),
+                onTap: () => _toggle(Attribute.strikeThrough),
+                tooltip: 'Strikethrough',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarDivider(),
+              _ToolbarIconButton(
+                icon: Icons.highlight,
+                isActive: _isHighlightActive(),
+                onTap: _toggleHighlight,
+                tooltip: 'Highlight',
+                activeColor: const Color(0xFFFFF176),
+                activeIconColor: const Color(0xFF795548),
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarIconButton(
+                icon: Icons.link,
+                isActive: false,
+                onTap: _insertLink,
+                tooltip: 'Insert Link',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarDivider(),
+              _ToolbarButton(
+                label: 'H1',
+                isActive: _isHeaderActive(1),
+                onTap: () => _toggleHeader(1),
+                tooltip: 'Heading 1',
+                fontSize: 11,
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarButton(
+                label: 'H2',
+                isActive: _isHeaderActive(2),
+                onTap: () => _toggleHeader(2),
+                tooltip: 'Heading 2',
+                fontSize: 11,
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarDivider(),
+              _ToolbarIconButton(
+                icon: Icons.format_list_bulleted,
+                isActive: _isActive(Attribute.ul),
+                onTap: () => _toggleList(Attribute.ul),
+                tooltip: 'Bullet List',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarIconButton(
+                icon: Icons.format_list_numbered,
+                isActive: _isActive(Attribute.ol),
+                onTap: () => _toggleList(Attribute.ol),
+                tooltip: 'Numbered List',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarIconButton(
+                icon: Icons.checklist,
+                isActive: _isChecklistActive(),
+                onTap: _toggleChecklist,
+                tooltip: 'Checklist',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarDivider(),
+              _ToolbarIconButton(
+                icon: Icons.format_quote,
+                isActive: _isActive(Attribute.blockQuote),
+                onTap: () => _toggle(Attribute.blockQuote),
+                tooltip: 'Block Quote',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarIconButton(
+                icon: Icons.code,
+                isActive: _isActive(Attribute.inlineCode),
+                onTap: () => _toggle(Attribute.inlineCode),
+                tooltip: 'Inline Code',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarDivider(),
+              _ToolbarIconButton(
+                icon: Icons.format_indent_increase,
+                isActive: false,
+                onTap: _indent,
+                tooltip: 'Indent',
+                focusNode: widget.focusNode,
+              ),
+              _ToolbarIconButton(
+                icon: Icons.format_indent_decrease,
+                isActive: false,
+                onTap: _outdent,
+                tooltip: 'Outdent',
+                focusNode: widget.focusNode,
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -385,12 +397,14 @@ class _ToolbarButton extends StatelessWidget {
   final bool underline;
   final bool strikethrough;
   final double fontSize;
+  final FocusNode focusNode;
 
   const _ToolbarButton({
     required this.label,
     required this.isActive,
     required this.onTap,
     required this.tooltip,
+    required this.focusNode,
     this.bold = false,
     this.italic = false,
     this.underline = false,
@@ -407,28 +421,33 @@ class _ToolbarButton extends StatelessWidget {
 
     return Tooltip(
       message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: fontSize,
-              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-              fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-              decoration: underline
-                  ? TextDecoration.underline
-                  : strikethrough
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-              color: fg,
+      child: Listener(
+        onPointerDown: (_) {
+          focusNode.requestFocus();
+        },
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: fontSize,
+                fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+                fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+                decoration: underline
+                    ? TextDecoration.underline
+                    : strikethrough
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                color: fg,
+              ),
             ),
           ),
         ),
@@ -444,12 +463,14 @@ class _ToolbarIconButton extends StatelessWidget {
   final String tooltip;
   final Color? activeColor;
   final Color? activeIconColor;
+  final FocusNode focusNode;
 
   const _ToolbarIconButton({
     required this.icon,
     required this.isActive,
     required this.onTap,
     required this.tooltip,
+    required this.focusNode,
     this.activeColor,
     this.activeIconColor,
   });
@@ -465,17 +486,22 @@ class _ToolbarIconButton extends StatelessWidget {
 
     return Tooltip(
       message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
+      child: Listener(
+        onPointerDown: (_) {
+          focusNode.requestFocus();
+        },
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 18, color: fg),
           ),
-          child: Icon(icon, size: 18, color: fg),
         ),
       ),
     );

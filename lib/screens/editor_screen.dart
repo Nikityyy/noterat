@@ -154,19 +154,6 @@ class _EditorBodyState extends State<_EditorBody> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      floatingActionButton: p.isLoading
-          ? null
-          : FloatingActionButton(
-              mini: true,
-              backgroundColor: AppColors.styrianForest,
-              foregroundColor: Colors.white,
-              tooltip: 'Comments',
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                showCommentsSheet(context, p.noteId, p.groupId, p.userId, p.nickname);
-              },
-              child: const Icon(Icons.chat_bubble_outline, size: 20),
-            ),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRect(
@@ -356,6 +343,26 @@ class _EditorBodyState extends State<_EditorBody> {
                   ),
                 ),
               ),
+
+                if (!p.isLoading)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+                      child: FloatingActionButton(
+                        mini: true,
+                        backgroundColor: AppColors.styrianForest,
+                        foregroundColor: Colors.white,
+                        tooltip: 'Comments',
+                        elevation: 2,
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          showCommentsSheet(context, p.noteId, p.groupId, p.userId, p.nickname);
+                        },
+                        child: const Icon(Icons.chat_bubble_outline, size: 20),
+                      ),
+                    ),
+                  ),
 
                 // Formatting toolbar (slides up with the keyboard)
                 SafeArea(
