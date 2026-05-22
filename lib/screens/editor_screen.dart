@@ -289,18 +289,23 @@ class _EditorBodyState extends State<_EditorBody> {
               children: [
                 // Quill editor canvas
                 Expanded(
-                  child: QuillEditor(
-                    focusNode: _editorFocusNode,
-                    scrollController: ScrollController(),
-                    controller: p.quillController,
-                    config: QuillEditorConfig(
-                      padding: EdgeInsets.fromLTRB(
-                        20,
-                        MediaQuery.of(context).padding.top + kToolbarHeight + 20,
-                        20,
-                        80,
-                      ),
-                      placeholder: 'Title... Start writing...',
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      MediaQuery.of(context).padding.top + kToolbarHeight + 20,
+                      20,
+                      0,
+                    ),
+                    child: QuillEditor(
+                      focusNode: _editorFocusNode,
+                      scrollController: ScrollController(),
+                      controller: p.quillController,
+                      config: QuillEditorConfig(
+                        onTapOutside: (event, focusNode) {
+                          // Prevent keyboard from closing when tapping the formatting toolbar
+                        },
+                        padding: const EdgeInsets.only(bottom: 80),
+                        placeholder: 'Title... Start writing...',
                       autoFocus: false,
                       expands: true,
                       scrollable: true,
@@ -350,9 +355,13 @@ class _EditorBodyState extends State<_EditorBody> {
                     ),
                   ),
                 ),
+              ),
 
                 // Formatting toolbar (slides up with the keyboard)
-                FormattingToolbar(controller: p.quillController),
+                SafeArea(
+                  top: false,
+                  child: FormattingToolbar(controller: p.quillController),
+                ),
               ],
             ),
     );

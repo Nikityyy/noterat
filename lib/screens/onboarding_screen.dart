@@ -83,8 +83,18 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       });
     }
 
-    return Scaffold(
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isLoggingIn) {
+          setState(() => _isLoggingIn = false);
+        } else if (_currentPage > 0) {
+          _prevPage();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 450),
@@ -166,6 +176,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -355,8 +366,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               labelText: 'Email address',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Please enter your email.';
+              }
               if (!_isValidEmail(value)) return 'Enter a valid email address.';
               return null;
             },
@@ -422,8 +434,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Please enter a password.';
+              }
               if (value.length < 6) return 'Must be at least 6 characters.';
               return null;
             },
@@ -452,8 +465,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Please confirm your password.';
+              }
               if (value != auth.password) return 'Passwords do not match.';
               return null;
             },
@@ -524,8 +538,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               hintText: 'e.g. Alex',
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty)
+              if (value == null || value.trim().isEmpty) {
                 return 'Please enter your name.';
+              }
               return null;
             },
             onChanged: (val) {
@@ -595,8 +610,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               hintText: 'you@example.com',
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Please enter your email.';
+              }
               return null;
             },
             onChanged: (val) {
@@ -623,8 +639,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Please enter your password.';
+              }
               return null;
             },
             onChanged: (val) {

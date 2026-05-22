@@ -255,6 +255,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -307,7 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         backgroundColor: AppColors.styrianForest,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
         icon: const Icon(Icons.add),
         label: const Text('New'),
       ),

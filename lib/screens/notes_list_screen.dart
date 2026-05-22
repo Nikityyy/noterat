@@ -207,7 +207,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
         onPressed: _createNote,
         backgroundColor: AppColors.styrianForest,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
         icon: const Icon(Icons.edit_outlined, size: 18),
         label: const Text('New Note'),
       ),
