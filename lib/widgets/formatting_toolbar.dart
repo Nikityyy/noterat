@@ -77,18 +77,17 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggle(Attribute attribute) {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     final active = _isActive(attribute);
     if (active) {
       widget.controller.formatSelection(Attribute.clone(attribute, null));
     } else {
       widget.controller.formatSelection(attribute);
     }
+    widget.focusNode.requestFocus();
   }
 
   void _toggleHeader(int level) {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.header.key]?.value;
     if (current == level) {
@@ -96,11 +95,11 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     } else {
       widget.controller.formatSelection(HeaderAttribute(level: level));
     }
+    widget.focusNode.requestFocus();
   }
 
   void _toggleList(String listType) {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.list.key]?.value;
     if (current == listType) {
@@ -108,11 +107,11 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     } else {
       widget.controller.formatSelection(Attribute.fromKeyValue('list', listType));
     }
+    widget.focusNode.requestFocus();
   }
 
   void _toggleChecklist() {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.list.key]?.value;
     if (current == 'checked' || current == 'unchecked') {
@@ -120,22 +119,22 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     } else {
       widget.controller.formatSelection(Attribute.unchecked);
     }
+    widget.focusNode.requestFocus();
   }
 
   void _indent() {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     widget.controller.indentSelection(true);
+    widget.focusNode.requestFocus();
   }
 
   void _outdent() {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     widget.controller.indentSelection(false);
+    widget.focusNode.requestFocus();
   }
 
   void _insertLink() {
-    widget.focusNode.requestFocus();
     final selection = widget.controller.selection;
     final selectedText = widget.controller.document.getPlainText(
       selection.baseOffset,
@@ -195,6 +194,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
                 }
                 widget.controller.formatSelection(LinkAttribute(url));
               }
+              widget.focusNode.requestFocus();
               Navigator.pop(ctx);
             },
             child: const Text('Insert'),
@@ -206,7 +206,6 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
 
   void _toggleHighlight() {
     HapticFeedback.selectionClick();
-    widget.focusNode.requestFocus();
     final style = widget.controller.getSelectionStyle();
     final current = style.attributes[Attribute.background.key]?.value;
     if (current == '#FFF176') {
@@ -214,6 +213,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     } else {
       widget.controller.formatSelection(BackgroundAttribute('#FFF176'));
     }
+    widget.focusNode.requestFocus();
   }
 
   bool _isHighlightActive() {
@@ -242,17 +242,21 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.darkSurface : Colors.white;
     final border = isDark ? AppColors.darkBorder : AppColors.borderGray;
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final bottomPadding = isKeyboardOpen ? 0.0 : 24.0;
 
     return Container(
-      height: 44,
+      padding: EdgeInsets.only(bottom: bottomPadding),
       decoration: BoxDecoration(
         color: bg,
         border: Border(
           top: BorderSide(color: border, width: 0.5),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        height: 44,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Row(
           children: [
@@ -361,6 +365,7 @@ class _FormattingToolbarState extends State<FormattingToolbar> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
